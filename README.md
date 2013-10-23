@@ -4,7 +4,8 @@ cakephp-redis-ds
 Datasource for manipulation records in redis
 
  * example model
-	`class Example extends AppModel {
+	```
+    class Example extends AppModel {
 		public $useDbConfig = 'redis';
 		public $useTable = false;
 		public $displayField = 'test';
@@ -12,18 +13,22 @@ Datasource for manipulation records in redis
 			'id' => array('type' => 'integer'),
 			'test' => array('type' => 'string')
 		);
-	}`
+	}
+    ```
   
  
  * Configure ds
-	`public $redis = array(
+	```
+    public $redis = array(
 		'datasource' => 'RedisSource',
 		'server' => 'localhost',
-	);`
+	);
+    ```
  
  
  * example usage
- 	`$Example = ClassRegistry::init('Example');
+ 	```
+    $Example = ClassRegistry::init('Example');
 	$Example->create();
 	$Example->save(array('id' => '1', 'test' => 'name'));
 	$Example->create();
@@ -40,4 +45,5 @@ Datasource for manipulation records in redis
 			'id' => '2'
 		)
 	));
-	print_r($result);`
+	print_r($result);
+    ```
