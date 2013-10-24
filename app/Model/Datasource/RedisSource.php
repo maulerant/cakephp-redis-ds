@@ -156,17 +156,29 @@ class RedisSource extends DataSource {
 	 */
 	public function read(Model $model, $queryData = array(), $recursive = null) {
 		if ($queryData['fields'] === 'COUNT') {
-			return array(array(array('count' => 1)));
+			return array(array(array('count' => count($this->filtered($model, $this->readAllKeys($model), $queryData['conditions'])))));
 		}
 		if (empty($queryData['conditions'][$model->primaryKey])) {
 			if (empty($queryData['conditions'][$model->alias . '.' . $model->primaryKey])) {
-				return array();
+				return $this->filtered($model, $this->readAllKeys($model), $queryData['conditions']);
 			}
 			$id = $queryData['conditions'][$model->alias . '.' . $model->primaryKey];
 		} else {
 			$id = $queryData['conditions'][$model->primaryKey];
 		}
 		$key = $model->name . ':' . $id;
+		return $this->filtered($model, $this->readKey($model, $key), $queryData['conditions']);
+	}
+
+	/**
+	 * read key from redis
+	 *
+	 * @param Model  $model
+	 * @param string $key
+	 *
+	 * @return array
+	 */
+	public function readKey(Model $model, $key){
 		$value = $this->_Redis->get($key);
 
 		if (ctype_digit($value)) {
@@ -180,6 +192,109 @@ class RedisSource extends DataSource {
 				$model->alias => $value
 			)
 		);
+	}
+
+	/**
+	 * read all keys values from redis
+	 *
+	 * @param Model $model
+	 *
+	 * @return array
+	 */
+	public function readAllKeys(Model $model){
+		$keys = $this->_Redis->keys($model->name . ':*');
+
+		$values = array();
+		foreach ($keys as $key) {
+			$value = $this->readKey($model, $key);
+			$values[] = $value[0];
+		}
+		return $values;
+	}
+
+	/**
+	 * filter result
+	 *
+	 * @param Model $model
+	 * @param array $values
+	 * @param array $conditions
+	 *
+	 * @return array
+	 */
+	public function filtered(Model $model, $values, $conditions){
+		$result = array();
+		foreach ($values as $value) {
+			if ($this->checkConditions($value[$model->name], $conditions)) {
+				$result[] = $value;
+			}
+		}
+		return $result;
+	}
+
+	/**
+	 * check value by select conditions
+	 *
+	 * @param array $value
+	 * @param array $conditions
+	 *
+	 * @return bool
+	 */
+	public function checkConditions($value, $conditions){
+		if(empty($conditions)) {
+			return true;
+		}
+		$result = true;
+		$resultOr = false;
+		$resultNot = false;
+		foreach ($conditions as $field => $condition) {
+			if(strtoupper($field) == 'OR') {
+				$resultOr = $resultOr || $this->checkConditions($value, $condition);
+				continue;
+			}
+			if(strtoupper($field) == 'NOT') {
+				$resultNot = $resultNot && $this->checkConditions($value, $condition);
+				continue;
+			}
+			$result = $result && $this->checkCondition($value, $field, $condition);
+		}
+		return ($result || $resultOr) && !$resultNot;
+	}
+
+	/**
+	 * @param array  $value
+	 * @param string $field
+	 * @param string $condition
+	 *
+	 * @return bool
+	 */
+	public function checkCondition($value, $field, $condition){
+		if(!isset($value[$field])) {
+			return false;
+		}
+
+		/** @var array $fieldAndOperator */
+		$fieldAndOperator = extract(' ', trim($field));
+		if(count($fieldAndOperator) == 2) {
+			switch(strtoupper(end($fieldAndOperator))) {
+				case '>':
+					return ($value[$fieldAndOperator[0]] > $condition);
+					break;
+				case '<':
+					return ($value[$fieldAndOperator[0]] < $condition);
+					break;
+				case '>=':
+					return ($value[$fieldAndOperator[0]] >= $condition);
+					break;
+				case '<=':
+					return ($value[$fieldAndOperator[0]] <= $condition);
+					break;
+				case 'IN':
+					/** @todo реализация */
+					break;
+			}
+		}
+
+		return ($value[$field] == $condition);
 	}
 
 	/**
