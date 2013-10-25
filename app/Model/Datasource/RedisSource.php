@@ -305,13 +305,15 @@ class RedisSource extends DataSource {
 		if (empty($fields) || empty($values)) {
 			return false;
 		}
-		$value = serialize(array_combine($fields, $values));
+		$record = array_combine($fields, $values);
 		$key = $model->name . ':' . $model->{$model->primaryKey};
-		if (empty($fields['duration']) || ($fields['duration'] === 0)) {
-			return $this->_Redis->set($key, $value);
+		if (empty($record['duration']) || ($record['duration'] === 0)) {
+			return $this->_Redis->set($key, serialize($record));
 		}
 
-		return $this->_Redis->setex($key, $fields['duration'], $value);
+		$duration = $record['duration'];
+		unset($record['duration']);
+		return $this->_Redis->setex($key, $duration, serialize($record));
 	}
 
 	/**
