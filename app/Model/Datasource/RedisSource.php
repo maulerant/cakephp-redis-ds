@@ -166,7 +166,10 @@ class RedisSource extends DataSource {
 		} else {
 			$id = $queryData['conditions'][$model->primaryKey];
 		}
-		$key = strstr($id, '*') ? $id : $model->name . ':' . $id;
+		if (strpos($id, '*') !== false) {
+			return $this->readAllKeys($model, $id);
+		}
+		$key = $model->name . ':' . $id;
 		return $this->filtered($model, $this->readKey($model, $key), $queryData['conditions']);
 	}
 
