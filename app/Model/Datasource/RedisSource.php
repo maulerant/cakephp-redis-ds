@@ -3,45 +3,45 @@
  * Class RedisSource
  *
  * example model
-	class Example extends AppModel {
-		public $useDbConfig = 'redis';
-		public $useTable = false;
-		public $displayField = 'test';
-		public $_schema = array(
-			'id' => array('type' => 'integer'),
-			'test' => array('type' => 'string')
-		);
-	}
+    class Example extends AppModel {
+        public $useDbConfig = 'redis';
+        public $useTable = false;
+        public $displayField = 'test';
+        public $_schema = array(
+            'id' => array('type' => 'integer'),
+            'test' => array('type' => 'string')
+        );
+    }
  *
  *
  *
  * Configure ds
-	public $redis = array(
-		'datasource' => 'RedisSource',
-		'server' => 'localhost',
-	);
+    public $redis = array(
+        'datasource' => 'RedisSource',
+        'server' => 'localhost',
+    );
  *
  *
  * example usage
  *
-	$Example = ClassRegistry::init('Example');
-	$Example->create();
-	$Example->save(array('id' => '1', 'test' => 'name'));
-	$Example->create();
-	$Example->save(array('id' => '2', 'test' => 'name2'));
-	$result = $Example->find('list', array(
-		'conditions' => array(
-			'id' => '2'
-		)
-	));
-	print_r($result);
-	$Example->delete(2);
-	$result = $Example->find('list', array(
-		'conditions' => array(
-			'id' => '2'
-		)
-	));
-	print_r($result);
+    $Example = ClassRegistry::init('Example');
+    $Example->create();
+    $Example->save(array('id' => '1', 'test' => 'name'));
+    $Example->create();
+    $Example->save(array('id' => '2', 'test' => 'name2'));
+    $result = $Example->find('list', array(
+        'conditions' => array(
+            'id' => '2'
+        )
+    ));
+    print_r($result);
+    $Example->delete(2);
+    $result = $Example->find('list', array(
+        'conditions' => array(
+            'id' => '2'
+        )
+    ));
+    print_r($result);
  *
  *
  */
@@ -166,7 +166,7 @@ class RedisSource extends DataSource {
 		} else {
 			$id = $queryData['conditions'][$model->primaryKey];
 		}
-		$key = $model->name . ':' . $id;
+		$key = strstr($id, '*') ? $id : $model->name . ':' . $id;
 		return $this->filtered($model, $this->readKey($model, $key), $queryData['conditions']);
 	}
 
@@ -178,7 +178,7 @@ class RedisSource extends DataSource {
 	 *
 	 * @return array
 	 */
-	public function readKey(Model $model, $key){
+	public function readKey(Model $model, $key) {
 		$value = $this->_Redis->get($key);
 
 		if (ctype_digit($value)) {
@@ -201,7 +201,7 @@ class RedisSource extends DataSource {
 	 *
 	 * @return array
 	 */
-	public function readAllKeys(Model $model){
+	public function readAllKeys(Model $model) {
 		$keys = $this->_Redis->keys($model->name . ':*');
 
 		$values = array();
@@ -221,7 +221,7 @@ class RedisSource extends DataSource {
 	 *
 	 * @return array
 	 */
-	public function filtered(Model $model, $values, $conditions){
+	public function filtered(Model $model, $values, $conditions) {
 		$result = array();
 		foreach ($values as $value) {
 			if ($this->checkConditions($value[$model->name], $conditions)) {
@@ -239,19 +239,19 @@ class RedisSource extends DataSource {
 	 *
 	 * @return bool
 	 */
-	public function checkConditions($value, $conditions){
-		if(empty($conditions)) {
+	public function checkConditions($value, $conditions) {
+		if (empty($conditions)) {
 			return true;
 		}
 		$result = true;
 		$resultOr = false;
 		$resultNot = false;
 		foreach ($conditions as $field => $condition) {
-			if(strtoupper($field) == 'OR') {
+			if (strtoupper($field) == 'OR') {
 				$resultOr = $resultOr || $this->checkConditions($value, $condition);
 				continue;
 			}
-			if(strtoupper($field) == 'NOT') {
+			if (strtoupper($field) == 'NOT') {
 				$resultNot = $resultNot && $this->checkConditions($value, $condition);
 				continue;
 			}
@@ -267,15 +267,15 @@ class RedisSource extends DataSource {
 	 *
 	 * @return bool
 	 */
-	public function checkCondition($value, $field, $condition){
-		if(!isset($value[$field])) {
+	public function checkCondition($value, $field, $condition) {
+		if (!isset($value[$field])) {
 			return false;
 		}
 
 		/** @var array $fieldAndOperator */
 		$fieldAndOperator = extract(' ', trim($field));
-		if(count($fieldAndOperator) == 2) {
-			switch(strtoupper(end($fieldAndOperator))) {
+		if (count($fieldAndOperator) == 2) {
+			switch (strtoupper(end($fieldAndOperator))) {
 				case '>':
 					return ($value[$fieldAndOperator[0]] > $condition);
 					break;
@@ -305,8 +305,16 @@ class RedisSource extends DataSource {
 		if (empty($fields) || empty($values)) {
 			return false;
 		}
+
 		$record = array_combine($fields, $values);
-		$key = $model->name . ':' . $model->{$model->primaryKey};
+		$key = $model->name;
+		if (empty($model->{$model->primaryKey})) {
+			if (!empty($record[$model->primaryKey])) {
+				$key .= ':' . $record[$model->primaryKey];
+			}
+		} else {
+			$key .= ':' . $model->{$model->primaryKey};
+		}
 		if (empty($record['duration']) || ($record['duration'] === 0)) {
 			return $this->_Redis->set($key, serialize($record));
 		}
