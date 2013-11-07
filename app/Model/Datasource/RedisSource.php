@@ -279,7 +279,7 @@ class RedisSource extends DataSource {
 		}
 
 		/** @var array $fieldAndOperator */
-		$fieldAndOperator = extract(' ', trim($field));
+		$fieldAndOperator = explode(' ', trim($field));
 		if (count($fieldAndOperator) == 2) {
 			switch (strtoupper(end($fieldAndOperator))) {
 				case '>':
