@@ -204,8 +204,11 @@ class RedisSource extends DataSource {
 	 *
 	 * @return array
 	 */
-	public function readAllKeys(Model $model) {
-		$keys = $this->_Redis->keys($model->name . ':*');
+	public function readAllKeys(Model $model, $ids = null) {
+		if($ids === null) {
+			$ids = $model->name . ':*';
+		}
+		$keys = $this->_Redis->keys($ids);
 
 		$values = array();
 		foreach ($keys as $key) {
