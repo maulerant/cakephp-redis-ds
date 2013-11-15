@@ -3,45 +3,45 @@
  * Class RedisSource
  *
  * example model
-    class Example extends AppModel {
-        public $useDbConfig = 'redis';
-        public $useTable = false;
-        public $displayField = 'test';
-        public $_schema = array(
-            'id' => array('type' => 'integer'),
-            'test' => array('type' => 'string')
-        );
-    }
+class Example extends AppModel {
+public $useDbConfig = 'redis';
+public $useTable = false;
+public $displayField = 'test';
+public $_schema = array(
+'id' => array('type' => 'integer'),
+'test' => array('type' => 'string')
+);
+}
  *
  *
  *
  * Configure ds
-    public $redis = array(
-        'datasource' => 'RedisSource',
-        'server' => 'localhost',
-    );
+public $redis = array(
+'datasource' => 'RedisSource',
+'server' => 'localhost',
+);
  *
  *
  * example usage
  *
-    $Example = ClassRegistry::init('Example');
-    $Example->create();
-    $Example->save(array('id' => '1', 'test' => 'name'));
-    $Example->create();
-    $Example->save(array('id' => '2', 'test' => 'name2'));
-    $result = $Example->find('list', array(
-        'conditions' => array(
-            'id' => '2'
-        )
-    ));
-    print_r($result);
-    $Example->delete(2);
-    $result = $Example->find('list', array(
-        'conditions' => array(
-            'id' => '2'
-        )
-    ));
-    print_r($result);
+$Example = ClassRegistry::init('Example');
+$Example->create();
+$Example->save(array('id' => '1', 'test' => 'name'));
+$Example->create();
+$Example->save(array('id' => '2', 'test' => 'name2'));
+$result = $Example->find('list', array(
+'conditions' => array(
+'id' => '2'
+)
+));
+print_r($result);
+$Example->delete(2);
+$result = $Example->find('list', array(
+'conditions' => array(
+'id' => '2'
+)
+));
+print_r($result);
  *
  *
  */
@@ -64,9 +64,10 @@ class RedisSource extends DataSource {
 		'timeout' => 0,
 		'persistent' => true,
 		'port' => '6379',
-		'password' => false
+		'password' => false,
 	);
 
+	protected $keyDelimiter = '.';
 
 	/**
 	 * Create our HttpSocket and handle any config tweaks.
@@ -159,17 +160,17 @@ class RedisSource extends DataSource {
 			return array(array(array('count' => count($this->filtered($model, $this->readAllKeys($model), $queryData['conditions'])))));
 		}
 		if (empty($queryData['conditions'][$model->primaryKey])) {
-			if (empty($queryData['conditions'][$model->alias . '.' . $model->primaryKey])) {
+			if (empty($queryData['conditions'][$model->alias . $this->keyDelimiter . $model->primaryKey])) {
 				return $this->filtered($model, $this->readAllKeys($model), $queryData['conditions']);
 			}
-			$id = $queryData['conditions'][$model->alias . '.' . $model->primaryKey];
+			$id = $queryData['conditions'][$model->alias . $this->keyDelimiter . $model->primaryKey];
 		} else {
 			$id = $queryData['conditions'][$model->primaryKey];
 		}
 		if (strpos($id, '*') !== false) {
 			return $this->readAllKeys($model, $id);
 		}
-		$key = $model->name . ':' . $id;
+		$key = $model->name . $this->keyDelimiter . $id;
 		return $this->filtered($model, $this->readKey($model, $key), $queryData['conditions']);
 	}
 
@@ -213,7 +214,9 @@ class RedisSource extends DataSource {
 		$values = array();
 		foreach ($keys as $key) {
 			$value = $this->readKey($model, $key);
-			$values[] = $value[0];
+			// @todo уточнить для find('list')
+			$value[0][$model->alias]['id'] = $key;
+			$values[] = array( $model->alias => $value[0][$model->alias]);
 		}
 		return $values;
 	}
@@ -316,10 +319,10 @@ class RedisSource extends DataSource {
 		$key = $model->name;
 		if (empty($model->{$model->primaryKey})) {
 			if (!empty($record[$model->primaryKey])) {
-				$key .= ':' . $record[$model->primaryKey];
+				$key .= $this->keyDelimiter . $record[$model->primaryKey];
 			}
 		} else {
-			$key .= ':' . $model->{$model->primaryKey};
+			$key .= $this->keyDelimiter . $model->{$model->primaryKey};
 		}
 		if (empty($record['duration']) || ($record['duration'] === 0)) {
 			return $this->_Redis->set($key, serialize($record));
@@ -343,7 +346,7 @@ class RedisSource extends DataSource {
 	 * Implement the D in CRUD. Calls to ``Model::delete()`` arrive here.
 	 */
 	public function delete(Model $model, $id = null) {
-		$key = $model->name . ":" . $id[$model->alias . '.' . $model->primaryKey];
+		$key = $model->name . $this->keyDelimiter . $id[$model->alias . '.' . $model->primaryKey];
 		return $this->_Redis->delete($key) > 0;
 	}
 
