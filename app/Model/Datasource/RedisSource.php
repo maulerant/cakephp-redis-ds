@@ -168,9 +168,9 @@ class RedisSource extends DataSource {
 			$id = $queryData['conditions'][$model->primaryKey];
 		}
 		if (strpos($id, '*') !== false) {
-			return $this->readAllKeys($model, $id);
+			return $this->readAllKeys($model, $model->alias . $this->keyDelimiter . $id);
 		}
-		$key = $model->name . $this->keyDelimiter . $id;
+		$key = $model->alias . $this->keyDelimiter . $id;
 		return $this->filtered($model, $this->readKey($model, $key), $queryData['conditions']);
 	}
 
@@ -356,13 +356,14 @@ class RedisSource extends DataSource {
 	 * ### Options
 	 *
 	 *
-	 * @param string $query  redis query statement
-	 * @param array  $options
-	 * @param array  $params values to be bound to the query
+	 * @param string $command  redis command statement
+	 * @param array  $args
+	 * @param array  $model 
 	 *
 	 * @return mixed Resource or object representing the result set, or false on failure
 	 */
-	public function execute($query, $options = array(), $params = array()) {
-		return false;
+	
+	public function query($command, $args, &$model) {
+		return call_user_func_array(array($this->_Redis, $command), $args);
 	}
 }
