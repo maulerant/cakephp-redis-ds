@@ -207,15 +207,17 @@ class RedisSource extends DataSource {
 	 */
 	public function readAllKeys(Model $model, $ids = null) {
 		if($ids === null) {
-			$ids = $model->name . ':*';
+			$ids = $model->alias . $this->keyDelimiter . '*';
 		}
 		$keys = $this->_Redis->keys($ids);
+		
+		$prefixLen = strlen($model->alias . $this->keyDelimiter);
 
 		$values = array();
 		foreach ($keys as $key) {
 			$value = $this->readKey($model, $key);
 			// @todo уточнить для find('list')
-			$value[0][$model->alias]['id'] = $key;
+			$value[0][$model->alias]['id'] = substr($key, $prefixLen);
 			$values[] = array( $model->alias => $value[0][$model->alias]);
 		}
 		return $values;
@@ -277,13 +279,12 @@ class RedisSource extends DataSource {
 	 * @return bool
 	 */
 	public function checkCondition($value, $field, $condition) {
-		if (!isset($value[$field])) {
-			return false;
-		}
-
 		/** @var array $fieldAndOperator */
 		$fieldAndOperator = explode(' ', trim($field));
 		if (count($fieldAndOperator) == 2) {
+			if (!isset($value[$fieldAndOperator[0]])) {
+				return false;
+			}
 			switch (strtoupper(end($fieldAndOperator))) {
 				case '>':
 					return ($value[$fieldAndOperator[0]] > $condition);
@@ -302,7 +303,12 @@ class RedisSource extends DataSource {
 					break;
 			}
 		}
-
+		
+		$field = explode('.', trim($field));
+		$field = end($field);
+		if (!isset($value[$field])) {
+			return false;
+		}
 		return ($value[$field] == $condition);
 	}
 
@@ -356,12 +362,15 @@ class RedisSource extends DataSource {
 	 * ### Options
 	 *
 	 *
-	 * @param string $command  redis command statement
-	 * @param array  $args
-	 * @param array  $model 
+	 * @param string $query  redis query statement
+	 * @param array  $options
+	 * @param array  $params values to be bound to the query
 	 *
 	 * @return mixed Resource or object representing the result set, or false on failure
 	 */
+	public function execute($query, $options = array(), $params = array()) {
+		return false;
+	}
 	
 	public function query($command, $args, &$model) {
 		return call_user_func_array(array($this->_Redis, $command), $args);
